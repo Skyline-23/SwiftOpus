@@ -1,14 +1,39 @@
 # SwiftOpus
 
-SwiftOpus is a clean-slate Swift package maintained by Skyline-23 for low-latency Opus encode/decode on Apple platforms.
+SwiftOpus is a Swift package maintained by Skyline-23 for low-latency Opus decode paths on Apple platforms.
 
-## Status
+## Version
 
-This repository is intentionally initialized from scratch and currently contains a minimal package scaffold.
+- Current package stream: `0.1.0`
 
-## Next Steps
+## What is implemented
 
-1. Add vendored libopus source (or pinned submodule) with reproducible build settings.
-2. Implement safe Swift wrappers for decoder/encoder lifecycle.
-3. Add RTP-oriented decode tests and PCM conformance checks.
-4. Add CI matrix for iOS/macOS/tvOS/watchOS/visionOS.
+- Vendored upstream `libopus` via submodule pinned to `v1.6.1`
+- Typed runtime surface (`OpusSampleRate`, `OpusChannelLayout`, `OpusDecoderConfiguration`, `OpusError`)
+- Hardware-friendly low-copy decode path:
+  - single-stream decode (`opus_decode` / `opus_decode_float`)
+  - multistream decode (`opus_multistream_decode` / `opus_multistream_decode_float`)
+- Output conversion helpers for non-interleaved `AVAudioPCMBuffer`
+- Swift Testing coverage for config/layout/decode guardrails
+
+## Quick usage
+
+```swift
+import SwiftOpus
+
+let config = try OpusDecoderConfiguration(
+    sampleRate: .hz48k,
+    channels: 2,
+    pcmFormat: .float32
+)
+let decoder = try OpusDecoder(configuration: config)
+
+if let pcm = try decoder.decodeToPCMBuffer(payload: packetData) {
+    // enqueue into audio output path
+}
+```
+
+## Notes
+
+- Decoder APIs are built for realtime paths and avoid per-call decoder reallocation.
+- Multistream layout for 5.1/7.1 follows standard Opus mapping.
