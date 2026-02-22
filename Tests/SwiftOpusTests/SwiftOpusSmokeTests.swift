@@ -1,7 +1,8 @@
 import Testing
 @testable import SwiftOpus
 
-@Test("Package loads COpus symbols")
-func packageLoadsCOpusSymbols() {
-    #expect(OPUS_OK == 0)
+@Test("Opus constants expose expected frame bounds")
+func opusConstantsExposeExpectedFrameBounds() {
+    #expect(SwiftOpus.minimumSamplesPerChannelPerPacket == 20)
+    #expect(SwiftOpus.maximumSamplesPerChannelPerPacket == 5_760)
 }
