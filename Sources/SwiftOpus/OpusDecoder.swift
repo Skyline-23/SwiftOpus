@@ -26,13 +26,17 @@ public final class OpusDecoder: @unchecked Sendable {
                 for: configuration.channels
             )
             var createErrorCode: Int32 = OPUS_OK
-            let pointer = layout.mapping.withUnsafeBufferPointer { mappingBuffer in
-                opus_multistream_decoder_create(
+            let pointer = layout.mapping.withUnsafeBufferPointer { mappingBuffer -> OpaquePointer? in
+                guard let mappingBaseAddress = mappingBuffer.baseAddress else {
+                    createErrorCode = OPUS_BAD_ARG
+                    return nil
+                }
+                return opus_multistream_decoder_create(
                     configuration.sampleRate.rawValue,
                     Int32(configuration.channels),
                     Int32(layout.streamCount),
                     Int32(layout.coupledStreamCount),
-                    mappingBuffer.baseAddress!,
+                    mappingBaseAddress,
                     &createErrorCode
                 )
             }
@@ -98,6 +102,12 @@ public final class OpusDecoder: @unchecked Sendable {
                 actual: destination.count
             )
         }
+        guard let destinationBaseAddress = destination.baseAddress else {
+            throw SwiftOpus.RuntimeError.bufferTooSmall(
+                expectedMinimum: requiredSampleCount,
+                actual: 0
+            )
+        }
 
         guard payload.count > 0 else {
             return 0
@@ -116,7 +126,7 @@ public final class OpusDecoder: @unchecked Sendable {
                 pointer,
                 payload.bindMemory(to: UInt8.self).baseAddress,
                 Int32(payload.count),
-                destination.baseAddress!,
+                destinationBaseAddress,
                 Int32(configuration.maximumSamplesPerChannel),
                 decodeFEC ? 1 : 0
             )
@@ -125,7 +135,7 @@ public final class OpusDecoder: @unchecked Sendable {
                 pointer,
                 payload.bindMemory(to: UInt8.self).baseAddress,
                 Int32(payload.count),
-                destination.baseAddress!,
+                destinationBaseAddress,
                 Int32(configuration.maximumSamplesPerChannel),
                 decodeFEC ? 1 : 0
             )
@@ -164,6 +174,12 @@ public final class OpusDecoder: @unchecked Sendable {
                 actual: destination.count
             )
         }
+        guard let destinationBaseAddress = destination.baseAddress else {
+            throw SwiftOpus.RuntimeError.bufferTooSmall(
+                expectedMinimum: requiredSampleCount,
+                actual: 0
+            )
+        }
 
         guard payload.count > 0 else {
             return 0
@@ -182,7 +198,7 @@ public final class OpusDecoder: @unchecked Sendable {
                 pointer,
                 payload.bindMemory(to: UInt8.self).baseAddress,
                 Int32(payload.count),
-                destination.baseAddress!,
+                destinationBaseAddress,
                 Int32(configuration.maximumSamplesPerChannel),
                 decodeFEC ? 1 : 0
             )
@@ -191,7 +207,7 @@ public final class OpusDecoder: @unchecked Sendable {
                 pointer,
                 payload.bindMemory(to: UInt8.self).baseAddress,
                 Int32(payload.count),
-                destination.baseAddress!,
+                destinationBaseAddress,
                 Int32(configuration.maximumSamplesPerChannel),
                 decodeFEC ? 1 : 0
             )
@@ -324,13 +340,16 @@ public final class OpusDecoder: @unchecked Sendable {
         }
 
         let decodedFrameCount = destination.withUnsafeMutableBufferPointer { outputBuffer in
-            switch backend {
+            guard let outputBaseAddress = outputBuffer.baseAddress else {
+                return OPUS_BUFFER_TOO_SMALL
+            }
+            return switch backend {
             case let .single(pointer):
                 opus_decode_float(
                     pointer,
                     payload.bindMemory(to: UInt8.self).baseAddress,
                     Int32(payload.count),
-                    outputBuffer.baseAddress!,
+                    outputBaseAddress,
                     Int32(configuration.maximumSamplesPerChannel),
                     decodeFEC ? 1 : 0
                 )
@@ -339,7 +358,7 @@ public final class OpusDecoder: @unchecked Sendable {
                     pointer,
                     payload.bindMemory(to: UInt8.self).baseAddress,
                     Int32(payload.count),
-                    outputBuffer.baseAddress!,
+                    outputBaseAddress,
                     Int32(configuration.maximumSamplesPerChannel),
                     decodeFEC ? 1 : 0
                 )
@@ -366,13 +385,16 @@ public final class OpusDecoder: @unchecked Sendable {
         }
 
         let decodedFrameCount = destination.withUnsafeMutableBufferPointer { outputBuffer in
-            switch backend {
+            guard let outputBaseAddress = outputBuffer.baseAddress else {
+                return OPUS_BUFFER_TOO_SMALL
+            }
+            return switch backend {
             case let .single(pointer):
                 opus_decode(
                     pointer,
                     payload.bindMemory(to: UInt8.self).baseAddress,
                     Int32(payload.count),
-                    outputBuffer.baseAddress!,
+                    outputBaseAddress,
                     Int32(configuration.maximumSamplesPerChannel),
                     decodeFEC ? 1 : 0
                 )
@@ -381,7 +403,7 @@ public final class OpusDecoder: @unchecked Sendable {
                     pointer,
                     payload.bindMemory(to: UInt8.self).baseAddress,
                     Int32(payload.count),
-                    outputBuffer.baseAddress!,
+                    outputBaseAddress,
                     Int32(configuration.maximumSamplesPerChannel),
                     decodeFEC ? 1 : 0
                 )
