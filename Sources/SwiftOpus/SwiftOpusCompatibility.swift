@@ -1,27 +1,5 @@
 import Foundation
 
-public enum SwiftOpusPackageTag: String, Sendable, CaseIterable, Comparable {
-    case v0_1_0 = "v0.1.0"
-    case v0_2_0 = "v0.2.0"
-
-    public var semanticVersion: SwiftOpusSemanticVersion {
-        SwiftOpusSemanticVersion(parsing: rawValue) ?? .init(major: 0, minor: 0, patch: 0)
-    }
-
-    public static func resolveNearestTag(for semanticVersion: SwiftOpusSemanticVersion?) -> Self? {
-        guard let semanticVersion else {
-            return nil
-        }
-        return allCases
-            .sorted { $0.semanticVersion < $1.semanticVersion }
-            .last { $0.semanticVersion <= semanticVersion }
-    }
-
-    public static func < (lhs: Self, rhs: Self) -> Bool {
-        lhs.semanticVersion < rhs.semanticVersion
-    }
-}
-
 public enum SwiftOpusLibopusTag: String, Sendable, CaseIterable, Comparable {
     case v0_9_4 = "v0.9.4"
     case v0_9_5 = "v0.9.5"
@@ -127,12 +105,9 @@ public struct SwiftOpusSemanticVersion: Sendable, Equatable, Comparable, CustomS
 }
 
 public struct SwiftOpusCompatibilityProfile: Sendable, Equatable {
-    public let resolvedSwiftOpusPackageTag: SwiftOpusPackageTag?
     public let resolvedRuntimeLibopusTag: SwiftOpusLibopusTag?
     public let minimumRuntimeLibopusTagForFEC: SwiftOpusLibopusTag
     public let minimumRuntimeLibopusTagForMultistream: SwiftOpusLibopusTag
-    public let swiftOpusVersionString: String
-    public let swiftOpusVersion: SwiftOpusSemanticVersion?
     public let runtimeLibopusVersionString: String
     public let runtimeLibopusVersion: SwiftOpusSemanticVersion?
     public let supportsInBandFEC: Bool
@@ -140,24 +115,18 @@ public struct SwiftOpusCompatibilityProfile: Sendable, Equatable {
     public let maximumRecommendedPacketBytes: Int
 
     public init(
-        resolvedSwiftOpusPackageTag: SwiftOpusPackageTag?,
         resolvedRuntimeLibopusTag: SwiftOpusLibopusTag?,
         minimumRuntimeLibopusTagForFEC: SwiftOpusLibopusTag,
         minimumRuntimeLibopusTagForMultistream: SwiftOpusLibopusTag,
-        swiftOpusVersionString: String,
-        swiftOpusVersion: SwiftOpusSemanticVersion?,
         runtimeLibopusVersionString: String,
         runtimeLibopusVersion: SwiftOpusSemanticVersion?,
         supportsInBandFEC: Bool,
         supportsMultistreamLayout: Bool,
         maximumRecommendedPacketBytes: Int
     ) {
-        self.resolvedSwiftOpusPackageTag = resolvedSwiftOpusPackageTag
         self.resolvedRuntimeLibopusTag = resolvedRuntimeLibopusTag
         self.minimumRuntimeLibopusTagForFEC = minimumRuntimeLibopusTagForFEC
         self.minimumRuntimeLibopusTagForMultistream = minimumRuntimeLibopusTagForMultistream
-        self.swiftOpusVersionString = swiftOpusVersionString
-        self.swiftOpusVersion = swiftOpusVersion
         self.runtimeLibopusVersionString = runtimeLibopusVersionString
         self.runtimeLibopusVersion = runtimeLibopusVersion
         self.supportsInBandFEC = supportsInBandFEC
@@ -170,12 +139,9 @@ public struct SwiftOpusCompatibilityProfile: Sendable, Equatable {
     }
 
     public static func detect(
-        swiftOpusVersionString: String = SwiftOpus.version,
         runtimeLibopusVersionString: String = SwiftOpus.runtimeLibopusVersionString
     ) -> Self {
-        let swiftVersion = SwiftOpusSemanticVersion(parsing: swiftOpusVersionString)
         let runtimeVersion = SwiftOpusSemanticVersion(parsing: runtimeLibopusVersionString)
-        let packageTag = SwiftOpusPackageTag.resolveNearestTag(for: swiftVersion)
         let runtimeTag = SwiftOpusLibopusTag.resolveNearestTag(for: runtimeVersion)
 
         let minimumRuntimeLibopusTagForFEC: SwiftOpusLibopusTag = .v1_1
@@ -185,28 +151,22 @@ public struct SwiftOpusCompatibilityProfile: Sendable, Equatable {
         if let runtimeTag {
             supportsMultistreamLayout = runtimeTag >= minimumRuntimeLibopusTagForMultistream
         } else {
-            supportsMultistreamLayout = packageTag != nil
+            supportsMultistreamLayout = false
         }
 
         let supportsInBandFEC: Bool
         if let runtimeTag {
             supportsInBandFEC = runtimeTag >= minimumRuntimeLibopusTagForFEC
         } else {
-            supportsInBandFEC = packageTag != nil
+            supportsInBandFEC = false
         }
 
-        let maximumRecommendedPacketBytes = recommendedPacketLimit(
-            runtimeTag: runtimeTag,
-            packageTag: packageTag
-        )
+        let maximumRecommendedPacketBytes = recommendedPacketLimit(runtimeTag: runtimeTag)
 
         return .init(
-            resolvedSwiftOpusPackageTag: packageTag,
             resolvedRuntimeLibopusTag: runtimeTag,
             minimumRuntimeLibopusTagForFEC: minimumRuntimeLibopusTagForFEC,
             minimumRuntimeLibopusTagForMultistream: minimumRuntimeLibopusTagForMultistream,
-            swiftOpusVersionString: swiftOpusVersionString,
-            swiftOpusVersion: swiftVersion,
             runtimeLibopusVersionString: runtimeLibopusVersionString,
             runtimeLibopusVersion: runtimeVersion,
             supportsInBandFEC: supportsInBandFEC,
@@ -216,11 +176,10 @@ public struct SwiftOpusCompatibilityProfile: Sendable, Equatable {
     }
 
     private static func recommendedPacketLimit(
-        runtimeTag: SwiftOpusLibopusTag?,
-        packageTag: SwiftOpusPackageTag?
+        runtimeTag: SwiftOpusLibopusTag?
     ) -> Int {
         guard let runtimeTag else {
-            return packageTag == nil ? 1_500 : 4_096
+            return 1_500
         }
         if runtimeTag >= .v1_5 {
             return 8_192

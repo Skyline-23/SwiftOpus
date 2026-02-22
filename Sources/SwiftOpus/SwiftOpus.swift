@@ -5,7 +5,6 @@ public enum SwiftOpus: Sendable {}
 
 public extension SwiftOpus {
     static let runtimeTagEnvironmentKey = "SWIFTOPUS_LIBOPUS_TAG"
-    static let version = "0.1.0"
     static let bundledLibopusTag: SwiftOpusLibopusTag = .v1_6_1
     static let minimumSamplesPerChannelPerPacket: AVAudioFrameCount = 20
     static let maximumSamplesPerChannelPerPacket: AVAudioFrameCount = 5_760
