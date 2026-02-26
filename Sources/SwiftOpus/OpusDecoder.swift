@@ -79,12 +79,14 @@ public final class OpusDecoder: @unchecked Sendable {
     public func decodeInterleavedFloat(
         payload: Data,
         decodeFEC: Bool = false,
+        frameSizePerChannel: Int? = nil,
         into destination: UnsafeMutableBufferPointer<Float>
     ) throws -> Int {
         try payload.withUnsafeBytes { payloadBuffer in
             try decodeInterleavedFloat(
                 payload: payloadBuffer,
                 decodeFEC: decodeFEC,
+                frameSizePerChannel: frameSizePerChannel,
                 into: destination
             )
         }
@@ -93,6 +95,7 @@ public final class OpusDecoder: @unchecked Sendable {
     public func decodeInterleavedFloat(
         payload: UnsafeRawBufferPointer,
         decodeFEC: Bool = false,
+        frameSizePerChannel: Int? = nil,
         into destination: UnsafeMutableBufferPointer<Float>
     ) throws -> Int {
         let requiredSampleCount = configuration.maximumSamplesPerChannel * configuration.channels
@@ -115,6 +118,7 @@ public final class OpusDecoder: @unchecked Sendable {
         guard payload.count <= Int(Int32.max) else {
             throw SwiftOpus.RuntimeError.invalidPacketSize(payload.count)
         }
+        let frameSize = try validatedFrameSizePerChannel(frameSizePerChannel)
 
         lock.lock()
         defer { lock.unlock() }
@@ -127,7 +131,7 @@ public final class OpusDecoder: @unchecked Sendable {
                 payload.bindMemory(to: UInt8.self).baseAddress,
                 Int32(payload.count),
                 destinationBaseAddress,
-                Int32(configuration.maximumSamplesPerChannel),
+                frameSize,
                 decodeFEC ? 1 : 0
             )
         case let .multistream(pointer):
@@ -136,7 +140,7 @@ public final class OpusDecoder: @unchecked Sendable {
                 payload.bindMemory(to: UInt8.self).baseAddress,
                 Int32(payload.count),
                 destinationBaseAddress,
-                Int32(configuration.maximumSamplesPerChannel),
+                frameSize,
                 decodeFEC ? 1 : 0
             )
         }
@@ -151,12 +155,14 @@ public final class OpusDecoder: @unchecked Sendable {
     public func decodeInterleavedInt16(
         payload: Data,
         decodeFEC: Bool = false,
+        frameSizePerChannel: Int? = nil,
         into destination: UnsafeMutableBufferPointer<Int16>
     ) throws -> Int {
         try payload.withUnsafeBytes { payloadBuffer in
             try decodeInterleavedInt16(
                 payload: payloadBuffer,
                 decodeFEC: decodeFEC,
+                frameSizePerChannel: frameSizePerChannel,
                 into: destination
             )
         }
@@ -165,6 +171,7 @@ public final class OpusDecoder: @unchecked Sendable {
     public func decodeInterleavedInt16(
         payload: UnsafeRawBufferPointer,
         decodeFEC: Bool = false,
+        frameSizePerChannel: Int? = nil,
         into destination: UnsafeMutableBufferPointer<Int16>
     ) throws -> Int {
         let requiredSampleCount = configuration.maximumSamplesPerChannel * configuration.channels
@@ -187,6 +194,7 @@ public final class OpusDecoder: @unchecked Sendable {
         guard payload.count <= Int(Int32.max) else {
             throw SwiftOpus.RuntimeError.invalidPacketSize(payload.count)
         }
+        let frameSize = try validatedFrameSizePerChannel(frameSizePerChannel)
 
         lock.lock()
         defer { lock.unlock() }
@@ -199,7 +207,7 @@ public final class OpusDecoder: @unchecked Sendable {
                 payload.bindMemory(to: UInt8.self).baseAddress,
                 Int32(payload.count),
                 destinationBaseAddress,
-                Int32(configuration.maximumSamplesPerChannel),
+                frameSize,
                 decodeFEC ? 1 : 0
             )
         case let .multistream(pointer):
@@ -208,7 +216,7 @@ public final class OpusDecoder: @unchecked Sendable {
                 payload.bindMemory(to: UInt8.self).baseAddress,
                 Int32(payload.count),
                 destinationBaseAddress,
-                Int32(configuration.maximumSamplesPerChannel),
+                frameSize,
                 decodeFEC ? 1 : 0
             )
         }
@@ -218,6 +226,117 @@ public final class OpusDecoder: @unchecked Sendable {
         }
 
         return Int(decodedFrameCount)
+    }
+
+    public func concealInterleavedFloat(
+        frameSizePerChannel: Int,
+        into destination: UnsafeMutableBufferPointer<Float>
+    ) throws -> Int {
+        let requiredSampleCount = configuration.maximumSamplesPerChannel * configuration.channels
+        guard destination.count >= requiredSampleCount else {
+            throw SwiftOpus.RuntimeError.bufferTooSmall(
+                expectedMinimum: requiredSampleCount,
+                actual: destination.count
+            )
+        }
+        guard let destinationBaseAddress = destination.baseAddress else {
+            throw SwiftOpus.RuntimeError.bufferTooSmall(
+                expectedMinimum: requiredSampleCount,
+                actual: 0
+            )
+        }
+
+        let frameSize = try validatedFrameSizePerChannel(frameSizePerChannel)
+        lock.lock()
+        defer { lock.unlock() }
+
+        let decodedFrameCount: Int32
+        switch backend {
+        case let .single(pointer):
+            decodedFrameCount = opus_decode_float(
+                pointer,
+                nil,
+                0,
+                destinationBaseAddress,
+                frameSize,
+                0
+            )
+        case let .multistream(pointer):
+            decodedFrameCount = opus_multistream_decode_float(
+                pointer,
+                nil,
+                0,
+                destinationBaseAddress,
+                frameSize,
+                0
+            )
+        }
+
+        if decodedFrameCount < 0 {
+            throw SwiftOpus.OpusError(decodedFrameCount)
+        }
+        return Int(decodedFrameCount)
+    }
+
+    public func concealInterleavedInt16(
+        frameSizePerChannel: Int,
+        into destination: UnsafeMutableBufferPointer<Int16>
+    ) throws -> Int {
+        let requiredSampleCount = configuration.maximumSamplesPerChannel * configuration.channels
+        guard destination.count >= requiredSampleCount else {
+            throw SwiftOpus.RuntimeError.bufferTooSmall(
+                expectedMinimum: requiredSampleCount,
+                actual: destination.count
+            )
+        }
+        guard let destinationBaseAddress = destination.baseAddress else {
+            throw SwiftOpus.RuntimeError.bufferTooSmall(
+                expectedMinimum: requiredSampleCount,
+                actual: 0
+            )
+        }
+
+        let frameSize = try validatedFrameSizePerChannel(frameSizePerChannel)
+        lock.lock()
+        defer { lock.unlock() }
+
+        let decodedFrameCount: Int32
+        switch backend {
+        case let .single(pointer):
+            decodedFrameCount = opus_decode(
+                pointer,
+                nil,
+                0,
+                destinationBaseAddress,
+                frameSize,
+                0
+            )
+        case let .multistream(pointer):
+            decodedFrameCount = opus_multistream_decode(
+                pointer,
+                nil,
+                0,
+                destinationBaseAddress,
+                frameSize,
+                0
+            )
+        }
+
+        if decodedFrameCount < 0 {
+            throw SwiftOpus.OpusError(decodedFrameCount)
+        }
+        return Int(decodedFrameCount)
+    }
+
+    public func concealToPCMBuffer(
+        samplesPerChannel: Int
+    ) throws -> AVAudioPCMBuffer? {
+        switch configuration.pcmFormat {
+        case .float32:
+            return try concealToFloatBuffer(samplesPerChannel: samplesPerChannel)
+        case .int16:
+            return try concealToInt16Buffer(samplesPerChannel: samplesPerChannel)
+        }
     }
 
     public func decodeToPCMBuffer(
@@ -247,9 +366,55 @@ public final class OpusDecoder: @unchecked Sendable {
             try decodeInterleavedFloatLocked(
                 payload: payloadBuffer,
                 decodeFEC: decodeFEC,
+                frameSizePerChannel: Int32(configuration.maximumSamplesPerChannel),
                 into: &floatScratch
             )
         }
+        guard decodedFrameCount > 0 else {
+            return nil
+        }
+
+        guard let pcmBuffer = AVAudioPCMBuffer(
+            pcmFormat: outputFormat,
+            frameCapacity: AVAudioFrameCount(decodedFrameCount)
+        ), let channelData = pcmBuffer.floatChannelData
+        else {
+            throw SwiftOpus.RuntimeError.allocationFailed
+        }
+
+        let channelCount = configuration.channels
+        floatScratch.withUnsafeBufferPointer { sourceBuffer in
+            guard let source = sourceBuffer.baseAddress else {
+                return
+            }
+            for channelIndex in 0..<channelCount {
+                cblas_scopy(
+                    Int32(decodedFrameCount),
+                    source.advanced(by: channelIndex),
+                    Int32(channelCount),
+                    channelData[channelIndex],
+                    1
+                )
+            }
+        }
+
+        pcmBuffer.frameLength = AVAudioFrameCount(decodedFrameCount)
+        return pcmBuffer
+    }
+
+    private func concealToFloatBuffer(
+        samplesPerChannel: Int
+    ) throws -> AVAudioPCMBuffer? {
+        let frameSize = try validatedFrameSizePerChannel(samplesPerChannel)
+        lock.lock()
+        defer { lock.unlock() }
+
+        let decodedFrameCount = try decodeInterleavedFloatLocked(
+            payload: nil,
+            decodeFEC: false,
+            frameSizePerChannel: frameSize,
+            into: &floatScratch
+        )
         guard decodedFrameCount > 0 else {
             return nil
         }
@@ -293,6 +458,7 @@ public final class OpusDecoder: @unchecked Sendable {
             try decodeInterleavedInt16Locked(
                 payload: payloadBuffer,
                 decodeFEC: decodeFEC,
+                frameSizePerChannel: Int32(configuration.maximumSamplesPerChannel),
                 into: &int16Scratch
             )
         }
@@ -327,39 +493,88 @@ public final class OpusDecoder: @unchecked Sendable {
         return pcmBuffer
     }
 
+    private func concealToInt16Buffer(
+        samplesPerChannel: Int
+    ) throws -> AVAudioPCMBuffer? {
+        let frameSize = try validatedFrameSizePerChannel(samplesPerChannel)
+        lock.lock()
+        defer { lock.unlock() }
+
+        let decodedFrameCount = try decodeInterleavedInt16Locked(
+            payload: nil,
+            decodeFEC: false,
+            frameSizePerChannel: frameSize,
+            into: &int16Scratch
+        )
+        guard decodedFrameCount > 0 else {
+            return nil
+        }
+
+        guard let pcmBuffer = AVAudioPCMBuffer(
+            pcmFormat: outputFormat,
+            frameCapacity: AVAudioFrameCount(decodedFrameCount)
+        ), let channelData = pcmBuffer.int16ChannelData
+        else {
+            throw SwiftOpus.RuntimeError.allocationFailed
+        }
+
+        let channelCount = configuration.channels
+        int16Scratch.withUnsafeBufferPointer { sourceBuffer in
+            guard let source = sourceBuffer.baseAddress else {
+                return
+            }
+            for channelIndex in 0..<channelCount {
+                let target = channelData[channelIndex]
+                var sourceIndex = channelIndex
+                for frameIndex in 0..<decodedFrameCount {
+                    target[frameIndex] = source[sourceIndex]
+                    sourceIndex += channelCount
+                }
+            }
+        }
+
+        pcmBuffer.frameLength = AVAudioFrameCount(decodedFrameCount)
+        return pcmBuffer
+    }
+
     private func decodeInterleavedFloatLocked(
-        payload: UnsafeRawBufferPointer,
+        payload: UnsafeRawBufferPointer?,
         decodeFEC: Bool,
+        frameSizePerChannel: Int32,
         into destination: inout [Float]
     ) throws -> Int {
-        guard payload.count > 0 else {
-            return 0
-        }
-        guard payload.count <= Int(Int32.max) else {
-            throw SwiftOpus.RuntimeError.invalidPacketSize(payload.count)
+        if let payload {
+            guard payload.count > 0 else {
+                return 0
+            }
+            guard payload.count <= Int(Int32.max) else {
+                throw SwiftOpus.RuntimeError.invalidPacketSize(payload.count)
+            }
         }
 
         let decodedFrameCount = destination.withUnsafeMutableBufferPointer { outputBuffer in
             guard let outputBaseAddress = outputBuffer.baseAddress else {
                 return OPUS_BUFFER_TOO_SMALL
             }
+            let payloadBaseAddress = payload?.bindMemory(to: UInt8.self).baseAddress
+            let payloadLength = Int32(payload?.count ?? 0)
             return switch backend {
             case let .single(pointer):
                 opus_decode_float(
                     pointer,
-                    payload.bindMemory(to: UInt8.self).baseAddress,
-                    Int32(payload.count),
+                    payloadBaseAddress,
+                    payloadLength,
                     outputBaseAddress,
-                    Int32(configuration.maximumSamplesPerChannel),
+                    frameSizePerChannel,
                     decodeFEC ? 1 : 0
                 )
             case let .multistream(pointer):
                 opus_multistream_decode_float(
                     pointer,
-                    payload.bindMemory(to: UInt8.self).baseAddress,
-                    Int32(payload.count),
+                    payloadBaseAddress,
+                    payloadLength,
                     outputBaseAddress,
-                    Int32(configuration.maximumSamplesPerChannel),
+                    frameSizePerChannel,
                     decodeFEC ? 1 : 0
                 )
             }
@@ -373,38 +588,43 @@ public final class OpusDecoder: @unchecked Sendable {
     }
 
     private func decodeInterleavedInt16Locked(
-        payload: UnsafeRawBufferPointer,
+        payload: UnsafeRawBufferPointer?,
         decodeFEC: Bool,
+        frameSizePerChannel: Int32,
         into destination: inout [Int16]
     ) throws -> Int {
-        guard payload.count > 0 else {
-            return 0
-        }
-        guard payload.count <= Int(Int32.max) else {
-            throw SwiftOpus.RuntimeError.invalidPacketSize(payload.count)
+        if let payload {
+            guard payload.count > 0 else {
+                return 0
+            }
+            guard payload.count <= Int(Int32.max) else {
+                throw SwiftOpus.RuntimeError.invalidPacketSize(payload.count)
+            }
         }
 
         let decodedFrameCount = destination.withUnsafeMutableBufferPointer { outputBuffer in
             guard let outputBaseAddress = outputBuffer.baseAddress else {
                 return OPUS_BUFFER_TOO_SMALL
             }
+            let payloadBaseAddress = payload?.bindMemory(to: UInt8.self).baseAddress
+            let payloadLength = Int32(payload?.count ?? 0)
             return switch backend {
             case let .single(pointer):
                 opus_decode(
                     pointer,
-                    payload.bindMemory(to: UInt8.self).baseAddress,
-                    Int32(payload.count),
+                    payloadBaseAddress,
+                    payloadLength,
                     outputBaseAddress,
-                    Int32(configuration.maximumSamplesPerChannel),
+                    frameSizePerChannel,
                     decodeFEC ? 1 : 0
                 )
             case let .multistream(pointer):
                 opus_multistream_decode(
                     pointer,
-                    payload.bindMemory(to: UInt8.self).baseAddress,
-                    Int32(payload.count),
+                    payloadBaseAddress,
+                    payloadLength,
                     outputBaseAddress,
-                    Int32(configuration.maximumSamplesPerChannel),
+                    frameSizePerChannel,
                     decodeFEC ? 1 : 0
                 )
             }
@@ -415,5 +635,15 @@ public final class OpusDecoder: @unchecked Sendable {
         }
 
         return Int(decodedFrameCount)
+    }
+
+    private func validatedFrameSizePerChannel(_ frameSizePerChannel: Int?) throws -> Int32 {
+        let frameSize = frameSizePerChannel ?? configuration.maximumSamplesPerChannel
+        guard frameSize >= Int(SwiftOpus.minimumSamplesPerChannelPerPacket),
+              frameSize <= configuration.maximumSamplesPerChannel
+        else {
+            throw SwiftOpus.RuntimeError.invalidFrameSize(frameSize)
+        }
+        return Int32(frameSize)
     }
 }

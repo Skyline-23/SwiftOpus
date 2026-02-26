@@ -89,3 +89,35 @@ func decodeToPCMBufferReturnsNilForEmptyPayload() throws {
 
     #expect(decoded == nil)
 }
+
+@Test("Stereo configuration with explicit multistream layout uses multistream decoder path")
+func stereoConfigurationWithExplicitMultistreamLayoutUsesMultistreamDecoderPath() throws {
+    let configuration = try OpusDecoderConfiguration(
+        sampleRate: .hz48k,
+        channels: 2,
+        pcmFormat: .float32,
+        multistreamLayout: .stereo()
+    )
+
+    #expect(configuration.usesMultistreamDecoder)
+}
+
+@Test("Decoder can synthesize packet-loss concealment audio with requested frame size")
+func decoderCanSynthesizePacketLossConcealmentAudioWithRequestedFrameSize() throws {
+    let configuration = try OpusDecoderConfiguration(
+        sampleRate: .hz48k,
+        channels: 2,
+        pcmFormat: .int16
+    )
+    let decoder = try OpusDecoder(configuration: configuration)
+    var destination = [Int16](repeating: 0, count: configuration.maximumSamplesPerChannel * 2)
+
+    let frameCount = try destination.withUnsafeMutableBufferPointer { buffer in
+        try decoder.concealInterleavedInt16(
+            frameSizePerChannel: 960,
+            into: buffer
+        )
+    }
+
+    #expect(frameCount == 960)
+}

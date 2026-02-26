@@ -46,8 +46,8 @@ public struct OpusDecoderConfiguration: Sendable, Equatable {
     }
 
     public var usesMultistreamDecoder: Bool {
-        if let multistreamLayout {
-            return multistreamLayout.channels > 2
+        if multistreamLayout != nil {
+            return true
         }
         return channels > 2
     }
