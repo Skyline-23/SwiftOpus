@@ -336,6 +336,8 @@ public final class OpusDecoder: @unchecked Sendable {
             return try concealToFloatBuffer(samplesPerChannel: samplesPerChannel)
         case .int16:
             return try concealToInt16Buffer(samplesPerChannel: samplesPerChannel)
+        case .int16PromotedFloat32:
+            return try concealToPromotedFloatBuffer(samplesPerChannel: samplesPerChannel)
         }
     }
 
@@ -352,7 +354,76 @@ public final class OpusDecoder: @unchecked Sendable {
             return try decodeToFloatBuffer(payload: payload, decodeFEC: decodeFEC)
         case .int16:
             return try decodeToInt16Buffer(payload: payload, decodeFEC: decodeFEC)
+        case .int16PromotedFloat32:
+            return try decodeToPromotedFloatBuffer(payload: payload, decodeFEC: decodeFEC)
         }
+    }
+
+    private func decodeToPromotedFloatBuffer(
+        payload: Data,
+        decodeFEC: Bool
+    ) throws -> AVAudioPCMBuffer? {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let decodedFrameCount = try payload.withUnsafeBytes { payloadBuffer in
+            try decodeInterleavedInt16Locked(
+                payload: payloadBuffer,
+                decodeFEC: decodeFEC,
+                frameSizePerChannel: Int32(configuration.maximumSamplesPerChannel),
+                into: &int16Scratch
+            )
+        }
+        return try makePromotedFloatBuffer(decodedFrameCount: decodedFrameCount)
+    }
+
+    private func concealToPromotedFloatBuffer(
+        samplesPerChannel: Int
+    ) throws -> AVAudioPCMBuffer? {
+        let frameSize = try validatedFrameSizePerChannel(samplesPerChannel)
+        lock.lock()
+        defer { lock.unlock() }
+
+        let decodedFrameCount = try decodeInterleavedInt16Locked(
+            payload: nil,
+            decodeFEC: false,
+            frameSizePerChannel: frameSize,
+            into: &int16Scratch
+        )
+        return try makePromotedFloatBuffer(decodedFrameCount: decodedFrameCount)
+    }
+
+    private func makePromotedFloatBuffer(
+        decodedFrameCount: Int
+    ) throws -> AVAudioPCMBuffer? {
+        guard decodedFrameCount > 0 else {
+            return nil
+        }
+        guard let pcmBuffer = AVAudioPCMBuffer(
+            pcmFormat: outputFormat,
+            frameCapacity: AVAudioFrameCount(decodedFrameCount)
+        ), let channelData = pcmBuffer.floatChannelData
+        else {
+            throw SwiftOpus.RuntimeError.allocationFailed
+        }
+
+        let channelCount = configuration.channels
+        let scale = 1.0 / Float(Int16.max)
+        int16Scratch.withUnsafeBufferPointer { sourceBuffer in
+            guard let source = sourceBuffer.baseAddress else {
+                return
+            }
+            for channelIndex in 0..<channelCount {
+                let target = channelData[channelIndex]
+                var sourceIndex = channelIndex
+                for frameIndex in 0..<decodedFrameCount {
+                    target[frameIndex] = Float(source[sourceIndex]) * scale
+                    sourceIndex += channelCount
+                }
+            }
+        }
+        pcmBuffer.frameLength = AVAudioFrameCount(decodedFrameCount)
+        return pcmBuffer
     }
 
     private func decodeToFloatBuffer(

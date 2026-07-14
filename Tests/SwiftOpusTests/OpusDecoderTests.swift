@@ -31,6 +31,38 @@ func stereoDecoderConfigurationBuildsOutputFormat() throws {
     #expect(decoder.outputFormat.isInterleaved == false)
 }
 
+@Test("Int16-promoted decoder exposes non-interleaved Float32 PCM")
+func int16PromotedDecoderExposesFloat32PCM() throws {
+    let configuration = try OpusDecoderConfiguration(
+        sampleRate: .hz48k,
+        channels: 2,
+        pcmFormat: .int16PromotedFloat32
+    )
+    let decoder = try OpusDecoder(configuration: configuration)
+
+    #expect(decoder.outputFormat.channelCount == 2)
+    #expect(decoder.outputFormat.commonFormat == .pcmFormatFloat32)
+    #expect(decoder.outputFormat.isInterleaved == false)
+}
+
+@Test("Int16-promoted decoder conceals directly into Float32 PCM")
+func int16PromotedDecoderConcealsDirectlyIntoFloat32PCM() throws {
+    let configuration = try OpusDecoderConfiguration(
+        sampleRate: .hz48k,
+        channels: 2,
+        pcmFormat: .int16PromotedFloat32
+    )
+    let decoder = try OpusDecoder(configuration: configuration)
+
+    let buffer = try #require(
+        try decoder.concealToPCMBuffer(samplesPerChannel: 240)
+    )
+
+    #expect(buffer.format.commonFormat == .pcmFormatFloat32)
+    #expect(buffer.format.isInterleaved == false)
+    #expect(buffer.frameLength == 240)
+}
+
 @Test("Multistream decoder initializes for 5.1")
 func multistreamDecoderInitializesForFiveOne() throws {
     let layout = try OpusChannelLayout.standardSurround(for: 6)

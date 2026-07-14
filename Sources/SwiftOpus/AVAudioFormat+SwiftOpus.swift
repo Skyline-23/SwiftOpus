@@ -4,6 +4,7 @@ public extension AVAudioFormat {
     enum SwiftOpusPCMCommonFormat: Sendable {
         case int16
         case float32
+        case int16PromotedFloat32
     }
 
     convenience init?(
@@ -31,7 +32,7 @@ public extension AVAudioFormat {
                     AVLinearPCMIsNonInterleaved: true,
                     AVChannelLayoutKey: channelLayoutData,
                 ])
-            case .float32:
+            case .float32, .int16PromotedFloat32:
                 self.init(settings: [
                     AVFormatIDKey: kAudioFormatLinearPCM,
                     AVSampleRateKey: sampleRate.asInt,
@@ -57,7 +58,7 @@ public extension AVAudioFormat {
                 channels: channels,
                 interleaved: resolvedInterleaved
             )
-        case .float32:
+        case .float32, .int16PromotedFloat32:
             self.init(
                 commonFormat: .pcmFormatFloat32,
                 sampleRate: sampleRate.asDouble,
