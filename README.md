@@ -59,7 +59,8 @@ and contains only the requested target architecture. Universal applications
 should link the matching archive while building each architecture rather than
 linking a host-architecture Homebrew archive into every slice.
 
-For native macOS consumers that do not invoke SwiftPM themselves, the package
-also ships `COpusMacOS`, a universal arm64/x86_64 binary product at
-`Artifacts/COpus.xcframework`. This artifact is built from the same pinned
-libopus source and avoids machine-local Homebrew dependencies.
+For native consumers that do not compile the source target themselves, the
+repository also ships `Artifacts/COpus.xcframework`. It contains device and
+simulator slices for macOS, iOS, Mac Catalyst, tvOS, watchOS, and visionOS.
+Every slice is built from the same pinned libopus source, so consumers do not
+need machine-local Homebrew dependencies or platform-specific archives.
