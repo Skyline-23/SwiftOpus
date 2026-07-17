@@ -1,0 +1,4 @@
+module COpusMacOS {
+    umbrella header "opus.h"
+    export *
+}

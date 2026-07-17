@@ -45,3 +45,10 @@ jobs:
           archive="$(find .build/copus-x86_64 -type f -name libCOpus.a -print -quit)"
           test -n "$archive"
           test "$(lipo -archs "$archive")" = x86_64
+      - name: Validate universal macOS binary product
+        run: |
+          swift package describe >/dev/null
+          archive=Artifacts/COpus.xcframework/macos-arm64_x86_64/libCOpus.a
+          plutil -lint Artifacts/COpus.xcframework/Info.plist
+          architectures="$(lipo -archs "$archive")"
+          [[ "$architectures" == 'arm64 x86_64' || "$architectures" == 'x86_64 arm64' ]]

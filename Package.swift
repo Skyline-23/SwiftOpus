@@ -13,6 +13,7 @@ let package = Package(
     products: [
         .library(name: "SwiftOpus", targets: ["SwiftOpus"]),
         .library(name: "COpus", type: .static, targets: ["COpus"]),
+        .library(name: "COpusMacOS", targets: ["COpusMacOS"]),
     ],
     targets: [
         .target(
@@ -107,6 +108,10 @@ let package = Package(
             name: "SwiftOpus",
             dependencies: ["COpus"],
             path: "Sources/SwiftOpus"
+        ),
+        .binaryTarget(
+            name: "COpusMacOS",
+            path: "Artifacts/COpus.xcframework"
         ),
         .testTarget(
             name: "SwiftOpusTests",
