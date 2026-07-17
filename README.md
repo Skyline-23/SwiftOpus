@@ -58,3 +58,8 @@ The resulting `libCOpus.a` lives under the selected SwiftPM scratch directory
 and contains only the requested target architecture. Universal applications
 should link the matching archive while building each architecture rather than
 linking a host-architecture Homebrew archive into every slice.
+
+For native macOS consumers that do not invoke SwiftPM themselves, the package
+also ships `COpusMacOS`, a universal arm64/x86_64 binary product at
+`Artifacts/COpus.xcframework`. This artifact is built from the same pinned
+libopus source and avoids machine-local Homebrew dependencies.
