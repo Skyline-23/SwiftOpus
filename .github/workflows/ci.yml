@@ -45,10 +45,45 @@ jobs:
           archive="$(find .build/copus-x86_64 -type f -name libCOpus.a -print -quit)"
           test -n "$archive"
           test "$(lipo -archs "$archive")" = x86_64
-      - name: Validate universal macOS binary product
+      - name: Validate Apple platform binary product
         run: |
           swift package describe >/dev/null
-          archive=Artifacts/COpus.xcframework/macos-arm64_x86_64/libCOpus.a
           plutil -lint Artifacts/COpus.xcframework/Info.plist
-          architectures="$(lipo -archs "$archive")"
-          [[ "$architectures" == 'arm64 x86_64' || "$architectures" == 'x86_64 arm64' ]]
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+
+          root = Path("Artifacts/COpus.xcframework")
+          with (root / "Info.plist").open("rb") as file:
+              libraries = plistlib.load(file)["AvailableLibraries"]
+
+          actual = {
+              (
+                  library["SupportedPlatform"],
+                  library.get("SupportedPlatformVariant"),
+                  tuple(sorted(library["SupportedArchitectures"])),
+              )
+              for library in libraries
+          }
+          expected = {
+              ("macos", None, ("arm64", "x86_64")),
+              ("ios", None, ("arm64",)),
+              ("ios", "simulator", ("arm64", "x86_64")),
+              ("ios", "maccatalyst", ("arm64", "x86_64")),
+              ("tvos", None, ("arm64",)),
+              ("tvos", "simulator", ("arm64", "x86_64")),
+              ("watchos", None, ("arm64_32",)),
+              ("watchos", "simulator", ("arm64", "x86_64")),
+              ("xros", None, ("arm64",)),
+              ("xros", "simulator", ("arm64",)),
+          }
+          if actual != expected:
+              raise SystemExit(f"Unexpected XCFramework slices: {actual}")
+
+          for library in libraries:
+              directory = root / library["LibraryIdentifier"]
+              if not (directory / library["LibraryPath"]).is_file():
+                  raise SystemExit(f"Missing archive for {library['LibraryIdentifier']}")
+              if not (directory / library["HeadersPath"] / "module.modulemap").is_file():
+                  raise SystemExit(f"Missing module map for {library['LibraryIdentifier']}")
+          PY
