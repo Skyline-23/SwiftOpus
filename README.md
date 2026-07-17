@@ -4,7 +4,7 @@ SwiftOpus is a Swift package maintained by Skyline-23 for low-latency Opus decod
 
 ## Version
 
-- Current package stream: `0.1.0`
+- Current package stream: `0.5.0`
 
 ## What is implemented
 
@@ -55,12 +55,7 @@ swift build -c release \
 ```
 
 The resulting `libCOpus.a` lives under the selected SwiftPM scratch directory
-and contains only the requested target architecture. Universal applications
-should link the matching archive while building each architecture rather than
-linking a host-architecture Homebrew archive into every slice.
-
-For native consumers that do not compile the source target themselves, the
-repository also ships `Artifacts/COpus.xcframework`. It contains device and
-simulator slices for macOS, iOS, Mac Catalyst, tvOS, watchOS, and visionOS.
-Every slice is built from the same pinned libopus source, so consumers do not
-need machine-local Homebrew dependencies or platform-specific archives.
+and contains only the requested target architecture. SwiftPM and Xcode select
+and build the matching source product for macOS, iOS, Mac Catalyst, tvOS,
+watchOS, and visionOS, including simulator destinations. Consumers only need
+the package URL; no checked-in binary artifact or platform submodule is needed.
