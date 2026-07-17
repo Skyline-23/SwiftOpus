@@ -37,3 +37,24 @@ if let pcm = try decoder.decodeToPCMBuffer(payload: packetData) {
 
 - Decoder APIs are built for realtime paths and avoid per-call decoder reallocation.
 - Multistream layout for 5.1/7.1 follows standard Opus mapping.
+
+## Static COpus product
+
+`COpus` is an explicit static SwiftPM product. Native consumers can build an
+archive for the architecture they are linking instead of relying on a
+Homebrew or machine-local `libopus.a`:
+
+```bash
+swift build -c release \
+  --product COpus \
+  --triple arm64-apple-macosx14.0
+
+swift build -c release \
+  --product COpus \
+  --triple x86_64-apple-macosx14.0
+```
+
+The resulting `libCOpus.a` lives under the selected SwiftPM scratch directory
+and contains only the requested target architecture. Universal applications
+should link the matching archive while building each architecture rather than
+linking a host-architecture Homebrew archive into every slice.

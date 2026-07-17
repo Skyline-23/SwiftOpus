@@ -12,7 +12,7 @@ let package = Package(
     ],
     products: [
         .library(name: "SwiftOpus", targets: ["SwiftOpus"]),
-        .library(name: "COpus", targets: ["COpus"]),
+        .library(name: "COpus", type: .static, targets: ["COpus"]),
     ],
     targets: [
         .target(

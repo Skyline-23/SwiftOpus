@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: swiftopus-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/cache@v4
+        with:
+          path: .build
+          key: swiftopus-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Package.swift', '.gitmodules') }}
+          restore-keys: |
+            swiftopus-${{ runner.os }}-${{ runner.arch }}-
+      - name: Test Swift package
+        run: swift test
+      - name: Build arm64 COpus archive
+        run: |
+          swift build -c release \
+            --product COpus \
+            --triple arm64-apple-macosx14.0 \
+            --scratch-path .build/copus-arm64
+          archive="$(find .build/copus-arm64 -type f -name libCOpus.a -print -quit)"
+          test -n "$archive"
+          test "$(lipo -archs "$archive")" = arm64
+      - name: Build x86_64 COpus archive
+        run: |
+          swift build -c release \
+            --product COpus \
+            --triple x86_64-apple-macosx14.0 \
+            --scratch-path .build/copus-x86_64
+          archive="$(find .build/copus-x86_64 -type f -name libCOpus.a -print -quit)"
+          test -n "$archive"
+          test "$(lipo -archs "$archive")" = x86_64
